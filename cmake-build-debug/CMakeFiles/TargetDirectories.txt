@@ -1,0 +1,4 @@
+/Users/zakariawardere/CLionProjects/assignment2/cmake-build-debug/CMakeFiles/client.dir
+/Users/zakariawardere/CLionProjects/assignment2/cmake-build-debug/CMakeFiles/server.dir
+/Users/zakariawardere/CLionProjects/assignment2/cmake-build-debug/CMakeFiles/edit_cache.dir
+/Users/zakariawardere/CLionProjects/assignment2/cmake-build-debug/CMakeFiles/rebuild_cache.dir
