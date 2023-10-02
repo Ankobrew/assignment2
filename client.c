@@ -2,38 +2,53 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-shared_data_t *shared_data;
 
-void attach_to_shared_memory() {
-    int shmid = shmget(SHM_KEY, sizeof(shared_data_t), 0666);
-    if (shmid == -1) {
+
+void attachToSharedMemory(sharedMemory **sharedData);
+
+
+
+void sendToServer(sharedMemory *sharedData, uint32_t data);
+
+
+uint32_t readFromServer(sharedMemory *sharedData, int slot_index);
+
+int main() {
+
+    sharedMemory *sharedData;
+
+    attachToSharedMemory(&sharedData);
+
+    sendToServer(sharedData,12345);
+    printf("Data from server (slot 0): %u\n", readFromServer(sharedData, 0));
+
+    return 0;
+}
+
+void attachToSharedMemory(sharedMemory **sharedData) {
+    int shmID = shmget(SHM_KEY, sizeof(sharedMemory), 0666);
+    if (shmID == -1) {
         perror("Failed to find shared memory segment. Is the server running?");
         exit(1);
     }
-    shared_data = (shared_data_t *) shmat(shmid, NULL, 0);
+    *sharedData = (sharedMemory *) shmat(shmID, NULL, 0);
+    if (*sharedData == (void *)-1) {
+        perror("Attachment failed");
+        exit(1);
+    }
 }
 
-// Function to send data to the server
-void send_to_server(uint32_t data) {
-    while (shared_data->clientFlag == 1);  // Wait until the server has read the previous data
-    shared_data->number = data;            // Write data to shared memory
-    shared_data->clientFlag = 1;           // Set the clientFlag to signal data availability
+
+void sendToServer(sharedMemory *sharedData, uint32_t data) {
+    while (sharedData->clientFlag == 1);
+    sharedData->number = data;
+    sharedData->clientFlag = 1;
 }
 
-// Function to read data from the server
-uint32_t read_from_server(int slot_index) {
-    while (shared_data->serverFlag[slot_index] == 0);  // Wait until data is available
-    uint32_t data = shared_data->slot[slot_index];     // Read the data
-    shared_data->serverFlag[slot_index] = 0;           // Reset the serverFlag for that slot
+
+uint32_t readFromServer(sharedMemory *sharedData, int slot_index) {
+    while (sharedData->serverFlag[slot_index] == 0);
+    uint32_t data = sharedData->slot[slot_index];
+    sharedData->serverFlag[slot_index] = 0;
     return data;
-}
-
-int main() {
-    attach_to_shared_memory();
-
-    // Sample code for testing the functions
-    send_to_server(12345);
-    printf("Data from server (slot 0): %u\n", read_from_server(0));
-
-    return 0;
 }
