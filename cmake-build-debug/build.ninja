@@ -55,6 +55,12 @@ build CMakeFiles/client.dir/client.c.o: C_COMPILER__client_unscanned_Debug /User
   OBJECT_DIR = CMakeFiles/client.dir
   OBJECT_FILE_DIR = CMakeFiles/client.dir
 
+build CMakeFiles/client.dir/shared.c.o: C_COMPILER__client_unscanned_Debug /Users/zakariawardere/CLionProjects/assignment2/shared.c || cmake_object_order_depends_target_client
+  DEP_FILE = CMakeFiles/client.dir/shared.c.o.d
+  FLAGS = -g -arch arm64 -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX13.3.sdk -mmacosx-version-min=13.1 -fcolor-diagnostics
+  OBJECT_DIR = CMakeFiles/client.dir
+  OBJECT_FILE_DIR = CMakeFiles/client.dir
+
 
 # =============================================================================
 # Link build statements for EXECUTABLE target client
@@ -63,7 +69,7 @@ build CMakeFiles/client.dir/client.c.o: C_COMPILER__client_unscanned_Debug /User
 #############################################
 # Link the executable client
 
-build client: C_EXECUTABLE_LINKER__client_Debug CMakeFiles/client.dir/client.c.o
+build client: C_EXECUTABLE_LINKER__client_Debug CMakeFiles/client.dir/client.c.o CMakeFiles/client.dir/shared.c.o
   FLAGS = -g -arch arm64 -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX13.3.sdk -mmacosx-version-min=13.1
   OBJECT_DIR = CMakeFiles/client.dir
   POST_BUILD = :
@@ -86,6 +92,12 @@ build CMakeFiles/server.dir/server.c.o: C_COMPILER__server_unscanned_Debug /User
   OBJECT_DIR = CMakeFiles/server.dir
   OBJECT_FILE_DIR = CMakeFiles/server.dir
 
+build CMakeFiles/server.dir/shared.c.o: C_COMPILER__server_unscanned_Debug /Users/zakariawardere/CLionProjects/assignment2/shared.c || cmake_object_order_depends_target_server
+  DEP_FILE = CMakeFiles/server.dir/shared.c.o.d
+  FLAGS = -g -arch arm64 -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX13.3.sdk -mmacosx-version-min=13.1 -fcolor-diagnostics
+  OBJECT_DIR = CMakeFiles/server.dir
+  OBJECT_FILE_DIR = CMakeFiles/server.dir
+
 
 # =============================================================================
 # Link build statements for EXECUTABLE target server
@@ -94,7 +106,7 @@ build CMakeFiles/server.dir/server.c.o: C_COMPILER__server_unscanned_Debug /User
 #############################################
 # Link the executable server
 
-build server: C_EXECUTABLE_LINKER__server_Debug CMakeFiles/server.dir/server.c.o
+build server: C_EXECUTABLE_LINKER__server_Debug CMakeFiles/server.dir/server.c.o CMakeFiles/server.dir/shared.c.o
   FLAGS = -g -arch arm64 -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX13.3.sdk -mmacosx-version-min=13.1
   OBJECT_DIR = CMakeFiles/server.dir
   POST_BUILD = :

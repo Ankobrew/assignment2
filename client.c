@@ -13,13 +13,18 @@ void sendToServer(sharedMemory *sharedData, uint32_t data);
 
 uint32_t readFromServer(sharedMemory *sharedData, int slot_index);
 
+uint32_t getInput();
+
 int main() {
 
     sharedMemory *sharedData;
+    uint32_t number;
 
     attachToSharedMemory(&sharedData);
 
-    sendToServer(sharedData,12345);
+    number = getInput();
+
+    sendToServer(sharedData,number);
     printf("Data from server (slot 0): %u\n", readFromServer(sharedData, 0));
 
     return 0;
@@ -51,4 +56,16 @@ uint32_t readFromServer(sharedMemory *sharedData, int slot_index) {
     uint32_t data = sharedData->slot[slot_index];
     sharedData->serverFlag[slot_index] = 0;
     return data;
+}
+
+
+
+uint32_t getInput() {
+    printf("Enter a 32-bit integer (or 'q' to quit): ");
+    char input[20];
+    fgets(input, sizeof(input), stdin);
+    if (input[0] == 'q' || input[0] == 'Q') {
+        exit(0);
+    }
+    return (uint32_t) strtoul(input, NULL, 10);
 }
