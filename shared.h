@@ -5,6 +5,7 @@
 #include <sys/ipc.h>
 #include <sys/shm.h>
 #include <pthread.h>
+#include <sys/time.h>
 
 #define SHM_KEY 0x1234
 
@@ -22,6 +23,9 @@ typedef struct {
     char serverFlag[10];
     int progress[10];
     Semaphore sem;
+    struct timeval startTime[10];
+    struct timeval endTime[10];
+    long timeElapsed[10];
 } sharedMemory;
 
 

@@ -128,8 +128,9 @@ void attachToSharedMemory(sharedMemory **sharedData) {
 uint32_t receiveFromClient(sharedMemory *sharedData) {
     while (sharedData->clientFlag == 0);
     uint32_t data = sharedData->number;
-    int slot = findFreeSlot(sharedData);
-    sharedData->number = slot;
+    int slot_index = findFreeSlot(sharedData);
+    sharedData->number = slot_index;
+    gettimeofday(&sharedData->startTime[slot_index], NULL);
     sharedData->clientFlag = 0;
     return data;
 }
@@ -185,23 +186,27 @@ void *threadFunction(void *arg) {
     uint32_t input = args->input;
 
     // Here's the change
-    sharedMemory *sharedDataPointer = args->sharedData;
+    sharedMemory *sharedData = args->sharedData;
 
     int slot_index = args->slot_index;
 
-    trialDivision(sharedDataPointer, input, slot_index);
+    trialDivision(sharedData, input, slot_index);
 
     pthread_mutex_lock(&counterMutex);
     globalThreadCounter[slot_index]++;
 
     if (globalThreadCounter[slot_index] == 32) {
-        sharedDataPointer->progress[slot_index] = 100;
+        gettimeofday(&sharedData->endTime[slot_index], NULL);
+
+        sharedData->timeElapsed[slot_index] = (sharedData->endTime[slot_index].tv_sec - sharedData->startTime[slot_index].tv_sec) * 1000 +
+                       (sharedData->endTime[slot_index].tv_usec - sharedData->startTime[slot_index].tv_usec) / 1000;
+        sharedData->progress[slot_index] = 100;
         globalThreadCounter[slot_index] = 0;  // Reset the thread counter for this slot
-        sharedDataPointer->progress[slot_index] = 0; // Mark as completed
+        sharedData->progress[slot_index] = 0; // Mark as completed
     }
 
-    else if ((globalThreadCounter[slot_index]*100)/32 - sharedDataPointer->progress[slot_index] >= 5){
-        sharedDataPointer->progress[slot_index] = (globalThreadCounter[slot_index]*100)/32;
+    else if ((globalThreadCounter[slot_index]*100)/32 - sharedData->progress[slot_index] >= 5){
+        sharedData->progress[slot_index] = (globalThreadCounter[slot_index]*100)/32;
     }
 
     pthread_mutex_unlock(&counterMutex);

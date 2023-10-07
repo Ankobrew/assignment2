@@ -34,6 +34,8 @@ typedef struct {
 
 RequestTimeInfo requestTimes[10] = {0};
 
+int activeRequests = 0;
+
 int main() {
 
     sharedMemory *sharedData = (sharedMemory *)malloc(sizeof(sharedMemory));
@@ -42,7 +44,7 @@ int main() {
         exit(1);
     }
 
-    int activeRequests = 0;
+
 
     int shmID = initializeSharedMemory(&sharedData);
     //cleanupSharedMemory(sharedData, shmID);
@@ -58,21 +60,24 @@ int main() {
         // Infinite loop to continuously check if it can send more requests
         if (activeRequests < 10) {  // Check active request count
             args.input = getInput(sharedData, shmID);
-            pthread_create(&sendThread, NULL, sendToServer, &args);
-            pthread_detach(sendThread);  // So we don't need to join later
-            if (args.input == 0 && activeRequests == 0) {  // If in test mode
+            if (args.input == 0 && activeRequests == 0) {
+                pthread_create(&sendThread, NULL, sendToServer, &args);
+                pthread_detach(sendThread);  // So we don't need to join later// If in test mode
                 while (sharedData->progress[0]!= 100);
                 printf("Test Mode Complete\n");
                 sharedData->progress[0] = 0;
                 Mode = 2;
                 continue;
             }
-            else if (args.input == 0 && activeRequests != 0)
+            else if (args.input == 0 && activeRequests > 0)
             {
-                printf("Warning");
+                printf("Warning STOOOP \n]");
             } else {
+                pthread_create(&sendThread, NULL, sendToServer, &args);
+                pthread_detach(sendThread);  // So we don't need to join later
                 Mode = 1;
                 activeRequests++;
+                printf("This the ammount of acctive %d\n", activeRequests);
             }// Increment active request count
         } else {
 
@@ -81,15 +86,6 @@ int main() {
         }
 
 
-        for (int i = 0; i < 10; i++) {
-            if (sharedData->progress[i] == 0) {
-                if (activeRequests == 0){
-                    break;
-                } else {
-                    activeRequests--;
-                }
-            }
-        }
 
         usleep(50000);  // Slight delay to avoid busy-waiting too aggressively
     }  // Slight delay to avoid busy-waiting too aggressively
@@ -155,6 +151,9 @@ void *readFromServer(void *args) {
 
     while (1) { // Keep running indefinitely
 
+        if (activeRequests == 0){
+            Mode = 0;
+        }
         struct timeval currentTime;
         gettimeofday(&currentTime, NULL);
         long elapsed = (currentTime.tv_sec - lastProgressUpdateTime.tv_sec) * 1000 +
@@ -169,6 +168,12 @@ void *readFromServer(void *args) {
         for (int i = 0; i < 10; i++) { // Assuming 10 slots
             if (sharedData->serverFlag[i] == 1) {
                 printf("Data from server (slot %d): %u\n", i, sharedData->slot[i]);
+                if(sharedData->timeElapsed[i] > 0){
+                    printf("Slot %d took %ld\n", i, sharedData->timeElapsed[i]);
+                   sharedData->timeElapsed[i] = 0;
+                   activeRequests--;
+                    printf("This the ammount of acctive %d\n", activeRequests);
+                }
                 sharedData->serverFlag[i] = 0;
             }
         }
@@ -189,7 +194,7 @@ uint32_t getInput(sharedMemory *sharedData, int shmID) {
         cleanupSharedMemory(sharedData, shmID);
         exit(0);
     }
-    if (input[0] == '0') {
+    if (input[0] == '0' && activeRequests == 0 ) {
         printf("Entering test mode...\n");
         Mode = 2;
         return 0;  // Return 0 to signal test mode
