@@ -18,7 +18,7 @@ void *readFromServer(void *args);
 uint32_t getInput(sharedMemory *sharedData, int shmID);
 
 typedef struct {
-    uint32_t input;
+    int input;
     sharedMemory *sharedData;
 } ThreadArgs;
 
@@ -47,9 +47,20 @@ int main() {
             args.input = getInput(sharedData, shmID);
             pthread_create(&sendThread, NULL, sendToServer, &args);
             pthread_detach(sendThread);  // So we don't need to join later
-            activeRequests++;  // Increment active request count
-        }
-        else {
+            if (args.input == 0 && activeRequests == 0) {  // If in test mode
+                while (sharedData->progress[0]!= 100);
+                printf("Test Mode Complete\n");
+                sharedData->progress[0] = 0;
+                continue;
+            }
+            else if (args.input == 0 && activeRequests != 0)
+            {
+                printf("Warning");
+            } else {
+                activeRequests++;
+            }// Increment active request count
+        } else {
+
             printf("System is busy. Please wait and try again.\n");
             for (int i = 0; i < 10; i++) {
                 if (sharedData->progress[i] == 0) {
@@ -145,11 +156,15 @@ void *readFromServer(void *args) {
 
 uint32_t getInput(sharedMemory *sharedData, int shmID) {
     printf("Enter a 32-bit integer (or 'q' to quit): ");
-    char input[20];
+    char input[32];
     fgets(input, sizeof(input), stdin);
     if (input[0] == 'q' || input[0] == 'Q') {
         cleanupSharedMemory(sharedData, shmID);
         exit(0);
+    }
+    if (input[0] == '0') {
+        printf("Entering test mode...\n");
+        return 0;  // Return 0 to signal test mode
     }
     return (uint32_t) strtoul(input, NULL, 10);
 }
