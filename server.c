@@ -50,18 +50,18 @@ int main() {
 
     pthread_t threads[32];
 
-    ThreadArgs threadArgs;
+    ThreadArgs threadArgs[32];
 
-    threadArgs.sharedData = sharedData;
 //
 //
 //
     for (int i = 0; i < 32; i++) {
+        threadArgs[i].sharedData = sharedData;
         uint32_t rotatedInput = rotateRight(data, i);
         printf("\n%u\n ", rotatedInput);
-        threadArgs.input= rotatedInput;
+        threadArgs[i].input= rotatedInput;
 
-        if (pthread_create(&threads[i], NULL, threadFunction, &threadArgs) != 0) {
+        if (pthread_create(&threads[i], NULL, threadFunction, &threadArgs[i]) != 0) {
             perror("pthread_create");
             return 1;
         }
@@ -147,10 +147,9 @@ uint32_t rotateRight(uint32_t k, unsigned int b) {
 void trialDivision(sharedMemory *sharedData, uint32_t n) {
     // Print the number of 2s that divide n
     while (n % 2 == 0) {
-
         wait_semaphore(&(sharedData->sem));
         sharedData->slot[0] = 2;
-        printf("%lu ", sharedData->slot[0]);
+        sendTOClient(sharedData, 0, sharedData->slot[0]);
         signal_semaphore(&(sharedData->sem));
 
         n /= 2;
@@ -160,10 +159,9 @@ void trialDivision(sharedMemory *sharedData, uint32_t n) {
     for (uint32_t f = 3; f * f <= n; f += 2) {
         // While f divides n, print it and divide n
         while (n % f == 0) {
-
             wait_semaphore(&(sharedData->sem));
             sharedData->slot[0] = f;
-            printf("%lu ", sharedData->slot[0]);
+            sendTOClient(sharedData, 0, sharedData->slot[0]);
             signal_semaphore(&(sharedData->sem));
             n /= f;
         }
@@ -173,7 +171,7 @@ void trialDivision(sharedMemory *sharedData, uint32_t n) {
     if (n > 2) {
         wait_semaphore(&(sharedData->sem));
         sharedData->slot[0] = n;
-        printf("%lu ", sharedData->slot[0]);
+        sendTOClient(sharedData, 0, sharedData->slot[0]);
         signal_semaphore(&(sharedData->sem));
     }
 }

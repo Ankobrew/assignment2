@@ -1,31 +1,42 @@
 #include "shared.h"
 #include <stdio.h>
 #include <stdlib.h>
-
+#include <pthread.h>
+#include <unistd.h>
 
 
 void attachToSharedMemory(sharedMemory **sharedData);
 
 
 
-void sendToServer(sharedMemory *sharedData, uint32_t data);
+void *sendToServer(void *arg);
 
 
-uint32_t readFromServer(sharedMemory *sharedData, int slot_index);
+void *readFromServer(void *args);
 
 uint32_t getInput();
+
+typedef struct {
+    uint32_t input;
+    sharedMemory *sharedData;
+} ThreadArgs;
 
 int main() {
 
     sharedMemory *sharedData;
-    uint32_t number;
 
+    pthread_t sendThread, readThread;
     attachToSharedMemory(&sharedData);
+    ThreadArgs args;
+    args.sharedData = sharedData;
 
-    number = getInput();
+    pthread_create(&readThread, NULL, readFromServer, sharedData);
 
-    sendToServer(sharedData,number);
-    printf("Data from server (slot 0): %u\n", readFromServer(sharedData, 0));
+    while (1) { // Keep the main thread running to accept user inputs
+        args.input = getInput();
+        pthread_create(&sendThread, NULL, sendToServer, &args);
+        pthread_detach(sendThread); // So we don't need to join later
+    }
 
     return 0;
 }
@@ -44,18 +55,32 @@ void attachToSharedMemory(sharedMemory **sharedData) {
 }
 
 
-void sendToServer(sharedMemory *sharedData, uint32_t data) {
+void *sendToServer(void *arg) {
+    ThreadArgs *args = (ThreadArgs *)arg;
+    uint32_t data = args->input;
+    sharedMemory *sharedData = args->sharedData;
     while (sharedData->clientFlag == 1);
     sharedData->number = data;
     sharedData->clientFlag = 1;
+
+    return NULL;
 }
 
 
-uint32_t readFromServer(sharedMemory *sharedData, int slot_index) {
-    while (sharedData->serverFlag[slot_index] == 0);
-    uint32_t data = sharedData->slot[slot_index];
-    sharedData->serverFlag[slot_index] = 0;
-    return data;
+void *readFromServer(void *args) {
+    sharedMemory *sharedData = (sharedMemory *)args;
+
+    while (1) { // Keep running indefinitely
+        for (int i = 0; i < 10; i++) { // Assuming 10 slots
+            if (sharedData->serverFlag[i] == 1) {
+                printf("Data from server (slot %d): %u\n", i, sharedData->slot[i]);
+                sharedData->serverFlag[i] = 0;
+            }
+        }
+        usleep(10000); // Sleep for a bit before checking again to reduce CPU usage
+    }
+
+    return NULL;
 }
 
 
