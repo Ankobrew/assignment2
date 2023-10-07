@@ -10,17 +10,19 @@ int globalThreadCounter[10];
 
 pthread_mutex_t counterMutex = PTHREAD_MUTEX_INITIALIZER;
 
-int initializeSharedMemory(sharedMemory **sharedData);
+void attachToSharedMemory(sharedMemory **sharedData);
+
 
 uint32_t receiveFromClient(sharedMemory *sharedData);
 
 void sendTOClient(sharedMemory *sharedData, int slot_index, uint32_t data);
 
-void cleanupSharedMemory(sharedMemory *sharedData, int shmID);
 
 uint32_t rotateRight(uint32_t k, unsigned int b);
 
-void trialDivision(sharedMemory *sharedData, uint32_t n);
+void trialDivision(sharedMemory *sharedData, uint32_t n, int slot_index);
+
+int findFreeSlot(sharedMemory *sharedData);
 
 
 void *threadFunction(void *arg);
@@ -33,42 +35,44 @@ typedef struct {
 
 int main() {
 
-    int shmID;
-    sharedMemory *sharedData = (sharedMemory *)malloc(sizeof(sharedMemory));
-    if (sharedData == NULL) {
-        perror("Failed to allocate memory for sharedData");
-        exit(1);
-    }
 
 
 
 
-    shmID = initializeSharedMemory(&sharedData);
-
-    uint32_t data = receiveFromClient(sharedData);
-
+    sharedMemory *sharedData;
+    attachToSharedMemory(&sharedData);
 
 
 
-    pthread_t threads[32];
 
-    ThreadArgs threadArgs[32];
 
-//
-//
-//
-    for (int i = 0; i < 32; i++) {
-        threadArgs[i].sharedData = sharedData;
-        uint32_t rotatedInput = rotateRight(data, i);
-        printf("\n%u\n ", rotatedInput);
-        threadArgs[i].input= rotatedInput;
+    pthread_t threads[320];
 
-        if (pthread_create(&threads[i], NULL, threadFunction, &threadArgs[i]) != 0) {
-            perror("pthread_create");
-            return 1;
+    ThreadArgs threadArgs[320];
+
+
+    while (1) {
+
+        uint32_t data = receiveFromClient(sharedData);
+
+
+        int start = 32 * sharedData->number;
+        int end = start + 32;
+
+        for (int i = start; i < end; i++) {
+            threadArgs[i].sharedData = sharedData;
+            uint32_t rotatedInput = rotateRight(data, i);
+            printf("\n%u\n ", rotatedInput);
+            threadArgs[i].input = rotatedInput;
+
+            if (pthread_create(&threads[i], NULL, threadFunction, &threadArgs[i]) != 0) {
+                perror("pthread_create");
+                return 1;
+            }
+
+            usleep(10000);
         }
 
-        usleep(10000);
     }
 
 
@@ -86,7 +90,7 @@ int main() {
 //    printf("Received data from client: %u\n", trialDivision(data));
 //    sendTOClient(sharedData,0, trialDivision(data));
 
-    cleanupSharedMemory(sharedData, shmID);
+
 
 
 
@@ -95,28 +99,23 @@ int main() {
 }
 
 
-int initializeSharedMemory(sharedMemory **sharedData) {
-    int shmID = shmget(SHM_KEY, sizeof(sharedMemory), 0666 | IPC_CREAT);
+void attachToSharedMemory(sharedMemory **sharedData) {
+    int shmID = shmget(SHM_KEY, sizeof(sharedMemory), 0666);
     if (shmID == -1) {
-        perror("Failed to create shared memory segment");
+        perror("Failed to find shared memory segment. Is the server running?");
         exit(1);
     }
-    *sharedData = (sharedMemory *)shmat(shmID, NULL, 0);
+    *sharedData = (sharedMemory *) shmat(shmID, NULL, 0);
     if (*sharedData == (void *)-1) {
         perror("Attachment failed");
         exit(1);
     }
-
-    init_semaphore(&((*sharedData)->sem), 1);
-
-
-    return shmID;
 }
-
 uint32_t receiveFromClient(sharedMemory *sharedData) {
     while (sharedData->clientFlag == 0);
     uint32_t data = sharedData->number;
-    sharedData->number = 0;
+    int slot = findFreeSlot(sharedData);
+    sharedData->number = slot;
     sharedData->clientFlag = 0;
     return data;
 }
@@ -128,32 +127,18 @@ void sendTOClient(sharedMemory *sharedData, int slot_index, uint32_t data) {
 }
 
 
-void cleanupSharedMemory(sharedMemory *sharedData, int shmID) {
-
-    destroy_semaphore(&(sharedData->sem));
-    if (shmdt(sharedData) == -1) {
-        perror("Detached from shared memory failed");
-        exit(1);
-    }
-
-    // Remove the shared memory segment
-    if (shmctl(shmID, IPC_RMID, NULL) == -1) {
-        perror("Remove shared Memory failed");
-        exit(1);
-    }
-}
 
 uint32_t rotateRight(uint32_t k, unsigned int b) {
     return (k >> b) | (k << (32 - b));
 }
 
 
-void trialDivision(sharedMemory *sharedData, uint32_t n) {
+void trialDivision(sharedMemory *sharedData, uint32_t n, int slot_index) {
     // Print the number of 2s that divide n
     while (n % 2 == 0) {
         wait_semaphore(&(sharedData->sem));
-        sharedData->slot[0] = 2;
-        sendTOClient(sharedData, 0, sharedData->slot[0]);
+        sharedData->slot[slot_index] = 2;
+        sendTOClient(sharedData, slot_index, sharedData->slot[slot_index]);
         signal_semaphore(&(sharedData->sem));
 
         n /= 2;
@@ -164,8 +149,8 @@ void trialDivision(sharedMemory *sharedData, uint32_t n) {
         // While f divides n, print it and divide n
         while (n % f == 0) {
             wait_semaphore(&(sharedData->sem));
-            sharedData->slot[0] = f;
-            sendTOClient(sharedData, 0, sharedData->slot[0]);
+            sharedData->slot[slot_index] = f;
+            sendTOClient(sharedData, slot_index, sharedData->slot[slot_index]);
             signal_semaphore(&(sharedData->sem));
             n /= f;
         }
@@ -174,8 +159,8 @@ void trialDivision(sharedMemory *sharedData, uint32_t n) {
     // If n is a prime number greater than 2
     if (n > 2) {
         wait_semaphore(&(sharedData->sem));
-        sharedData->slot[0] = n;
-        sendTOClient(sharedData, 0, sharedData->slot[0]);
+        sharedData->slot[slot_index] = n;
+        sendTOClient(sharedData, slot_index, sharedData->slot[slot_index]);
         signal_semaphore(&(sharedData->sem));
     }
 }
@@ -188,18 +173,28 @@ void *threadFunction(void *arg) {
     // Here's the change
     sharedMemory *sharedDataPointer = args->sharedData;
 
-    int slot = sharedDataPointer->number;
+    int slot_index = sharedDataPointer->number;
 
-    trialDivision(sharedDataPointer, input);
+    trialDivision(sharedDataPointer, input, slot_index);
 
     pthread_mutex_lock(&counterMutex);
-    globalThreadCounter[slot]++;
+    globalThreadCounter[slot_index]++;
     pthread_mutex_unlock(&counterMutex);
 
-    if ((globalThreadCounter[slot]*100)/32 - sharedDataPointer->progress[slot] >= 5){
-        sharedDataPointer->progress[slot] = (globalThreadCounter[slot]*100)/32;
+    if ((globalThreadCounter[slot_index]*100)/32 - sharedDataPointer->progress[slot_index] >= 5){
+        sharedDataPointer->progress[slot_index] = (globalThreadCounter[slot_index]*100)/32;
     }
 
 
     return NULL;
+}
+
+int findFreeSlot(sharedMemory *sharedData) {
+    for (int i = 0; i < 10; i++) {
+        if (sharedData->progress[i] == 0) {
+            globalThreadCounter[i] = 0;
+            return i;
+        }
+    }
+    return -1;  // No free slot found
 }
