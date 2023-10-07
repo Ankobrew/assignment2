@@ -48,16 +48,17 @@ int main() {
             pthread_create(&sendThread, NULL, sendToServer, &args);
             pthread_detach(sendThread);  // So we don't need to join later
             activeRequests++;  // Increment active request count
-        } else {
+        }
+        else {
             printf("System is busy. Please wait and try again.\n");
             for (int i = 0; i < 10; i++) {
-                if (sharedData->progress[i] == 100) {
-                    sharedData->progress[i] = 0;
-                    printf("%d", sharedData->progress[i]);
+                if (sharedData->progress[i] == 0) {
                     activeRequests--;
                 }
             }
+
         }
+
         usleep(50000);  // Slight delay to avoid busy-waiting too aggressively
     }  // Slight delay to avoid busy-waiting too aggressively
 

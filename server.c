@@ -30,6 +30,7 @@ void *threadFunction(void *arg);
 typedef struct {
     uint32_t input;
     sharedMemory *sharedData;
+    int slot_index;
 } ThreadArgs;
 
 
@@ -64,7 +65,7 @@ int main() {
             uint32_t rotatedInput = rotateRight(data, i);
             printf("\n%u\n ", rotatedInput);
             threadArgs[i].input = rotatedInput;
-
+            threadArgs[i].slot_index = sharedData->number;
             if (pthread_create(&threads[i], NULL, threadFunction, &threadArgs[i]) != 0) {
                 perror("pthread_create");
                 return 1;
@@ -173,17 +174,24 @@ void *threadFunction(void *arg) {
     // Here's the change
     sharedMemory *sharedDataPointer = args->sharedData;
 
-    int slot_index = sharedDataPointer->number;
+    int slot_index = args->slot_index;
 
     trialDivision(sharedDataPointer, input, slot_index);
 
     pthread_mutex_lock(&counterMutex);
     globalThreadCounter[slot_index]++;
-    pthread_mutex_unlock(&counterMutex);
 
-    if ((globalThreadCounter[slot_index]*100)/32 - sharedDataPointer->progress[slot_index] >= 5){
+    if (globalThreadCounter[slot_index] == 32) {
+        sharedDataPointer->progress[slot_index] = 100;
+        globalThreadCounter[slot_index] = 0;  // Reset the thread counter for this slot
+        sharedDataPointer->progress[slot_index] = 0; // Mark as completed
+    }
+
+    else if ((globalThreadCounter[slot_index]*100)/32 - sharedDataPointer->progress[slot_index] >= 5){
         sharedDataPointer->progress[slot_index] = (globalThreadCounter[slot_index]*100)/32;
     }
+
+    pthread_mutex_unlock(&counterMutex);
 
 
     return NULL;
@@ -192,7 +200,6 @@ void *threadFunction(void *arg) {
 int findFreeSlot(sharedMemory *sharedData) {
     for (int i = 0; i < 10; i++) {
         if (sharedData->progress[i] == 0) {
-            globalThreadCounter[i] = 0;
             return i;
         }
     }
