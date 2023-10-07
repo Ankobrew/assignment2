@@ -3,7 +3,7 @@
 #include <stdlib.h>
 #include <pthread.h>
 #include <unistd.h>
-
+#include <sys/time.h>
 
 void attachToSharedMemory(sharedMemory **sharedData);
 
@@ -12,15 +12,27 @@ void cleanupSharedMemory(sharedMemory *sharedData, int shmID);
 
 void *sendToServer(void *arg);
 
+void displayProgress(sharedMemory *sharedData);
+
 
 void *readFromServer(void *args);
 
 uint32_t getInput(sharedMemory *sharedData, int shmID);
 
+int Mode = 0;
+
 typedef struct {
     int input;
     sharedMemory *sharedData;
 } ThreadArgs;
+
+
+typedef struct {
+    struct timeval requestTime;
+    int isActive;
+} RequestTimeInfo;
+
+RequestTimeInfo requestTimes[10] = {0};
 
 int main() {
 
@@ -42,7 +54,8 @@ int main() {
 
     pthread_create(&readThread, NULL, readFromServer, sharedData);
 
-    while(1) {  // Infinite loop to continuously check if it can send more requests
+    while(1) {
+        // Infinite loop to continuously check if it can send more requests
         if (activeRequests < 10) {  // Check active request count
             args.input = getInput(sharedData, shmID);
             pthread_create(&sendThread, NULL, sendToServer, &args);
@@ -51,23 +64,31 @@ int main() {
                 while (sharedData->progress[0]!= 100);
                 printf("Test Mode Complete\n");
                 sharedData->progress[0] = 0;
+                Mode = 2;
                 continue;
             }
             else if (args.input == 0 && activeRequests != 0)
             {
                 printf("Warning");
             } else {
+                Mode = 1;
                 activeRequests++;
             }// Increment active request count
         } else {
 
             printf("System is busy. Please wait and try again.\n");
-            for (int i = 0; i < 10; i++) {
-                if (sharedData->progress[i] == 0) {
+
+        }
+
+
+        for (int i = 0; i < 10; i++) {
+            if (sharedData->progress[i] == 0) {
+                if (activeRequests == 0){
+                    break;
+                } else {
                     activeRequests--;
                 }
             }
-
         }
 
         usleep(50000);  // Slight delay to avoid busy-waiting too aggressively
@@ -123,25 +144,31 @@ void *sendToServer(void *arg) {
     return NULL;
 }
 
-void *keepCheckingForFreeThread(void *arg){
-    sharedMemory *sharedData = (sharedMemory *)arg;
 
-    while (1){
-        for (int i = 0; i < 10 ; ++i) {
-
-        }
-    }
-}
 
 
 void *readFromServer(void *args) {
     sharedMemory *sharedData = (sharedMemory *)args;
 
+    struct timeval lastProgressUpdateTime;
+    gettimeofday(&lastProgressUpdateTime, NULL);
+
     while (1) { // Keep running indefinitely
+
+        struct timeval currentTime;
+        gettimeofday(&currentTime, NULL);
+        long elapsed = (currentTime.tv_sec - lastProgressUpdateTime.tv_sec) * 1000 +
+                       (currentTime.tv_usec - lastProgressUpdateTime.tv_usec) / 1000;
+
+        // If it has been more than 500ms or a response was received, update the progress
+        if (elapsed >= 500 && Mode == 1) {  // Do not display progress in test mode
+            displayProgress(sharedData);
+            gettimeofday(&lastProgressUpdateTime, NULL); // Reset the timer
+        }
+
         for (int i = 0; i < 10; i++) { // Assuming 10 slots
             if (sharedData->serverFlag[i] == 1) {
                 printf("Data from server (slot %d): %u\n", i, sharedData->slot[i]);
-                printf("Progress: Query %d: %d%%\n", i, sharedData->progress[i]);
                 sharedData->serverFlag[i] = 0;
             }
         }
@@ -164,7 +191,27 @@ uint32_t getInput(sharedMemory *sharedData, int shmID) {
     }
     if (input[0] == '0') {
         printf("Entering test mode...\n");
+        Mode = 2;
         return 0;  // Return 0 to signal test mode
     }
     return (uint32_t) strtoul(input, NULL, 10);
+}
+
+void displayProgress(sharedMemory *sharedData) {
+    printf("Current Progress: ");
+    for (int i = 0; i < 10; i++) {
+        if (sharedData->serverFlag[i] == 1 || sharedData->progress[i] > 0) {
+            printf("Q%d:%d%% ", i+1, sharedData->progress[i]);
+            int bars = sharedData->progress[i] / 10; // Assuming 10 blocks for 100%
+            for (int j = 0; j < bars; j++) {
+                printf("▓");
+            }
+            for (int j = bars; j < 10; j++) {
+                printf("_");
+            }
+            printf("| ");
+        }
+    }
+
+    printf("\n");
 }

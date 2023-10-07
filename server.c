@@ -245,7 +245,6 @@ void* testThreadFunction(void* arg) {
 void startTestMode(sharedMemory *sharedData) {
     pthread_t testThreads[30];
     TestThreadArgs threadArgs[30];
-
     for (int i = 0; i < 30; i++) {
         threadArgs[i].input = i;
         threadArgs[i].sharedData = sharedData;
@@ -258,9 +257,9 @@ void startTestMode(sharedMemory *sharedData) {
     for (int i = 0; i < 30; i++) {
         if (pthread_join(testThreads[i], NULL) != 0) {
             perror("pthread_join");
-            exit(1);
         }
     }
+
 
     printf("Test mode completed!\n");
 }
