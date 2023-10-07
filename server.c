@@ -6,7 +6,9 @@
 #include <unistd.h>
 
 
+int globalThreadCounter[10];
 
+pthread_mutex_t counterMutex = PTHREAD_MUTEX_INITIALIZER;
 
 int initializeSharedMemory(sharedMemory **sharedData);
 
@@ -69,8 +71,10 @@ int main() {
         usleep(10000);
     }
 
+
+
     // Wait for threads to finish using pthread_join
-    for (int i = 0; i < 5; i++) {
+    for (int i = 0; i < 32; i++) {
         if (pthread_join(threads[i], NULL) != 0) {
             perror("pthread_join");
             return 1;
@@ -184,7 +188,17 @@ void *threadFunction(void *arg) {
     // Here's the change
     sharedMemory *sharedDataPointer = args->sharedData;
 
+    int slot = sharedDataPointer->number;
+
     trialDivision(sharedDataPointer, input);
+
+    pthread_mutex_lock(&counterMutex);
+    globalThreadCounter[slot]++;
+    pthread_mutex_unlock(&counterMutex);
+
+    if ((globalThreadCounter[slot]*100)/32 - sharedDataPointer->progress[slot] >= 5){
+        sharedDataPointer->progress[slot] = (globalThreadCounter[slot]*100)/32;
+    }
 
 
     return NULL;

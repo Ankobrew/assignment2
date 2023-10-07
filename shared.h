@@ -20,6 +20,7 @@ typedef struct {
     int slot[10];
     char clientFlag;
     char serverFlag[10];
+    int progress[10];
     Semaphore sem;
 } sharedMemory;
 

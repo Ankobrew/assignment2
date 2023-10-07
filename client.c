@@ -73,11 +73,13 @@ void *readFromServer(void *args) {
     while (1) { // Keep running indefinitely
         for (int i = 0; i < 10; i++) { // Assuming 10 slots
             if (sharedData->serverFlag[i] == 1) {
-                printf("Data from server (slot %d): %u\n", i, sharedData->slot[i]);
+                printf("Data from server (slot %d): %u\n", i, sharedData->slot[0]);
+                printf("Progress: Query 1: %d%%\n", sharedData->progress[i]);
                 sharedData->serverFlag[i] = 0;
             }
         }
-        usleep(10000); // Sleep for a bit before checking again to reduce CPU usage
+        usleep(10000);
+//        printf("Progress: Query 1: %d%%\n", (sharedData->progress[0])
     }
 
     return NULL;
