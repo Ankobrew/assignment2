@@ -16,6 +16,7 @@ void *sendToServer(void *arg);
 void *readFromServer(void *args);
 
 uint32_t getInput(sharedMemory *sharedData, int shmID);
+//void waitForTestResults(sharedMemory *sharedData);
 
 typedef struct {
     uint32_t input;
@@ -33,7 +34,7 @@ int main() {
     int activeRequests = 0;
 
     int shmID = initializeSharedMemory(&sharedData);
-    //cleanupSharedMemory(sharedData, shmID);
+
 
 
     pthread_t sendThread, readThread;
@@ -47,9 +48,19 @@ int main() {
             args.input = getInput(sharedData, shmID);
             pthread_create(&sendThread, NULL, sendToServer, &args);
             pthread_detach(sendThread);  // So we don't need to join later
-            activeRequests++;  // Increment active request count
+            if (args.input == 0 && activeRequests == 0) {  // If in test mode
+                while (1);
+                break;
+            }
+            else if (args.input == 0 && activeRequests != 0)
+            {
+                printf("Warning");
+            } else {
+                activeRequests++;
+            }// Increment active request count
         } else {
             printf("System is busy. Please wait and try again.\n");
+        }
             for (int i = 0; i < 10; i++) {
                 if (sharedData->progress[i] == 100) {
                     sharedData->progress[i] = 0;
@@ -57,10 +68,11 @@ int main() {
                     activeRequests--;
                 }
             }
-        }
+
         usleep(50000);  // Slight delay to avoid busy-waiting too aggressively
     }  // Slight delay to avoid busy-waiting too aggressively
 
+    cleanupSharedMemory(sharedData, shmID);
     return 0;
 }
 
@@ -150,5 +162,25 @@ uint32_t getInput(sharedMemory *sharedData, int shmID) {
         cleanupSharedMemory(sharedData, shmID);
         exit(0);
     }
+    if (input[0] == '0') {
+        printf("Entering test mode...\n");
+        return 0;  // Return 0 to signal test mode
+    }
     return (uint32_t) strtoul(input, NULL, 10);
 }
+
+
+//void waitForTestResults(sharedMemory *sharedData) {
+//    int receivedNumbers = 0;  // To count how many numbers we've received
+//    printf("Awaiting test results...\n");
+//
+//    while (receivedNumbers < 30) {  // Since there are 3 threads sending 10 numbers each
+//        // Check if a number is available from the server. If yes, print it.
+//        for (int i = 0; i < 10; i++) {  // Assuming 10 slots
+//            readFromServer(sharedData);
+//
+//        }
+//        usleep(10000);  // Poll every 10ms
+//    }
+//    printf("Test mode complete, Passed Successfully.\n");
+//}

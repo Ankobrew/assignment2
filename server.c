@@ -11,6 +11,7 @@ int globalThreadCounter[10];
 pthread_mutex_t counterMutex = PTHREAD_MUTEX_INITIALIZER;
 
 void attachToSharedMemory(sharedMemory **sharedData);
+void startTestMode(sharedMemory *sharedData);
 
 
 uint32_t receiveFromClient(sharedMemory *sharedData);
@@ -33,6 +34,12 @@ typedef struct {
 } ThreadArgs;
 
 
+typedef struct {
+    int input;
+    sharedMemory *sharedData;
+} TestThreadArgs;
+
+
 int main() {
 
 
@@ -51,9 +58,17 @@ int main() {
     ThreadArgs threadArgs[320];
 
 
+
+
+
     while (1) {
 
         uint32_t data = receiveFromClient(sharedData);
+
+        if (data == 0) {  // If in test mode
+            startTestMode(sharedData);
+            continue;  // Go back to the start of the loop to wait for new requests
+        }
 
 
         int start = 32 * sharedData->number;
@@ -197,4 +212,49 @@ int findFreeSlot(sharedMemory *sharedData) {
         }
     }
     return -1;  // No free slot found
+}
+
+
+void* testThreadFunction(void* arg) {
+    TestThreadArgs *args = (TestThreadArgs *)arg;
+    int threadNum = args->input;
+
+    sharedMemory *sharedData = args->sharedData;
+
+    wait_semaphore(&(sharedData->sem));
+
+
+    sendTOClient(sharedData, threadNum / 10, threadNum);
+
+    signal_semaphore(&(sharedData->sem));
+
+    usleep((rand() % 91 + 10) * 1000);  // Random sleep between 10ms and 100ms
+
+
+    return NULL;
+}
+
+
+
+void startTestMode(sharedMemory *sharedData) {
+    pthread_t testThreads[30];
+    TestThreadArgs threadArgs[30];
+
+    for (int i = 0; i < 30; i++) {
+        threadArgs[i].input = i;
+        threadArgs[i].sharedData = sharedData;
+        if (pthread_create(&testThreads[i], NULL, testThreadFunction, &threadArgs[i]) != 0) {
+            perror("pthread_create");
+            exit(1);
+        }
+    }
+
+    for (int i = 0; i < 30; i++) {
+        if (pthread_join(testThreads[i], NULL) != 0) {
+            perror("pthread_join");
+            exit(1);
+        }
+    }
+
+    printf("Test mode completed!\n");
 }
