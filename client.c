@@ -27,13 +27,6 @@ typedef struct {
 } ThreadArgs;
 
 
-typedef struct {
-    struct timeval requestTime;
-    int isActive;
-} RequestTimeInfo;
-
-RequestTimeInfo requestTimes[10] = {0};
-
 int activeRequests = 0;
 
 int main() {
@@ -71,13 +64,12 @@ int main() {
             }
             else if (args.input == 0 && activeRequests > 0)
             {
-                printf("Warning STOOOP \n]");
+                printf("Warning: Active Requests ongoing so can not enter Test Mode\n\n");
             } else {
                 pthread_create(&sendThread, NULL, sendToServer, &args);
                 pthread_detach(sendThread);  // So we don't need to join later
                 Mode = 1;
                 activeRequests++;
-                printf("This the ammount of acctive %d\n", activeRequests);
             }// Increment active request count
         } else {
 
@@ -87,8 +79,8 @@ int main() {
 
 
 
-        usleep(50000);  // Slight delay to avoid busy-waiting too aggressively
-    }  // Slight delay to avoid busy-waiting too aggressively
+        usleep(50000);
+    }
 
     return 0;
 }
@@ -159,20 +151,20 @@ void *readFromServer(void *args) {
         long elapsed = (currentTime.tv_sec - lastProgressUpdateTime.tv_sec) * 1000 +
                        (currentTime.tv_usec - lastProgressUpdateTime.tv_usec) / 1000;
 
-        // If it has been more than 500ms or a response was received, update the progress
+
         if (elapsed >= 500 && Mode == 1) {  // Do not display progress in test mode
             displayProgress(sharedData);
-            gettimeofday(&lastProgressUpdateTime, NULL); // Reset the timer
+            gettimeofday(&lastProgressUpdateTime, NULL);
         }
 
-        for (int i = 0; i < 10; i++) { // Assuming 10 slots
+        for (int i = 0; i < 10; i++) {
             if (sharedData->serverFlag[i] == 1) {
                 printf("Data from server (slot %d): %u\n", i, sharedData->slot[i]);
                 if(sharedData->timeElapsed[i] > 0){
-                    printf("Slot %d took %ld\n", i, sharedData->timeElapsed[i]);
+                    printf("Slot %d took %ld milliseconds\n", i, sharedData->timeElapsed[i]);
                    sharedData->timeElapsed[i] = 0;
                    activeRequests--;
-                    printf("This the ammount of acctive %d\n", activeRequests);
+
                 }
                 sharedData->serverFlag[i] = 0;
             }
@@ -195,7 +187,7 @@ uint32_t getInput(sharedMemory *sharedData, int shmID) {
         exit(0);
     }
     if (input[0] == '0' && activeRequests == 0 ) {
-        printf("Entering test mode...\n");
+        printf("\nEntering Test Mode...\n\n");
         Mode = 2;
         return 0;  // Return 0 to signal test mode
     }

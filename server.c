@@ -1,7 +1,6 @@
 #include "shared.h"
 #include <stdio.h>
 #include <stdlib.h>
-#include <stdbool.h>
 #include <pthread.h>
 #include <unistd.h>
 
@@ -9,6 +8,8 @@
 int globalThreadCounter[10];
 
 pthread_mutex_t counterMutex = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t slotMutex = PTHREAD_MUTEX_INITIALIZER;
+
 
 void attachToSharedMemory(sharedMemory **sharedData);
 
@@ -25,6 +26,8 @@ void trialDivision(sharedMemory *sharedData, uint32_t n, int slot_index);
 int findFreeSlot(sharedMemory *sharedData);
 
 void startTestMode(sharedMemory *sharedData);
+
+void displayServerProgress(sharedMemory *sharedData);
 
 
 void *threadFunction(void *arg);
@@ -51,7 +54,7 @@ int main() {
     attachToSharedMemory(&sharedData);
 
 
-
+    srand(time(NULL));
 
 
     pthread_t threads[320];
@@ -76,7 +79,6 @@ int main() {
         for (int i = start; i < end; i++) {
             threadArgs[i].sharedData = sharedData;
             uint32_t rotatedInput = rotateRight(data, i);
-            printf("\n%u\n ", rotatedInput);
             threadArgs[i].input = rotatedInput;
             threadArgs[i].slot_index = sharedData->number;
             if (pthread_create(&threads[i], NULL, threadFunction, &threadArgs[i]) != 0) {
@@ -87,25 +89,9 @@ int main() {
             usleep(10000);
         }
 
+        displayServerProgress(sharedData);
+
     }
-
-
-
-    // Wait for threads to finish using pthread_join
-    for (int i = 0; i < 32; i++) {
-        if (pthread_join(threads[i], NULL) != 0) {
-            perror("pthread_join");
-            return 1;
-        }
-    }
-
-
-
-//    printf("Received data from client: %u\n", trialDivision(data));
-//    sendTOClient(sharedData,0, trialDivision(data));
-
-
-
 
 
 
@@ -128,7 +114,9 @@ void attachToSharedMemory(sharedMemory **sharedData) {
 uint32_t receiveFromClient(sharedMemory *sharedData) {
     while (sharedData->clientFlag == 0);
     uint32_t data = sharedData->number;
+    pthread_mutex_lock(&slotMutex);
     int slot_index = findFreeSlot(sharedData);
+    pthread_mutex_unlock(&slotMutex);
     sharedData->number = slot_index;
     gettimeofday(&sharedData->startTime[slot_index], NULL);
     sharedData->clientFlag = 0;
@@ -267,4 +255,22 @@ void startTestMode(sharedMemory *sharedData) {
 
 
     printf("Test mode completed!\n");
+}
+
+void displayServerProgress(sharedMemory *sharedData) {
+    printf("\nServer Progress: ");
+    for (int i = 0; i < 10; i++) {
+        if (sharedData->progress[i] > 0 || sharedData->serverFlag[i] == 1) {
+            printf("Slot %d: %d%% ", i, sharedData->progress[i]);
+            int bars = sharedData->progress[i] / 10; // Assuming 10 blocks for 100%
+            for (int j = 0; j < bars; j++) {
+                printf("▓");
+            }
+            for (int j = bars; j < 10; j++) {
+                printf("_");
+            }
+            printf("| ");
+        }
+    }
+    printf("\n");
 }
