@@ -47,9 +47,6 @@ typedef struct {
 int main() {
 
 
-
-
-
     sharedMemory *sharedData;
     attachToSharedMemory(&sharedData);
 
@@ -95,7 +92,7 @@ int main() {
 
 
 
-    return 0;
+
 }
 
 
@@ -173,7 +170,6 @@ void *threadFunction(void *arg) {
     ThreadArgs *args = (ThreadArgs *)arg;
     uint32_t input = args->input;
 
-    // Here's the change
     sharedMemory *sharedData = args->sharedData;
 
     int slot_index = args->slot_index;
@@ -262,7 +258,7 @@ void displayServerProgress(sharedMemory *sharedData) {
     for (int i = 0; i < 10; i++) {
         if (sharedData->progress[i] > 0 || sharedData->serverFlag[i] == 1) {
             printf("Slot %d: %d%% ", i, sharedData->progress[i]);
-            int bars = sharedData->progress[i] / 10; // Assuming 10 blocks for 100%
+            int bars = sharedData->progress[i] / 10;
             for (int j = 0; j < bars; j++) {
                 printf("▓");
             }

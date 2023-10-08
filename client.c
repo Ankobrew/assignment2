@@ -56,7 +56,7 @@ int main() {
             args.input = getInput(sharedData, shmID);
             if (args.input == 0 && activeRequests == 0) {
                 pthread_create(&sendThread, NULL, sendToServer, &args);
-                pthread_detach(sendThread);  // So we don't need to join later// If in test mode
+                pthread_detach(sendThread);
                 while (sharedData->progress[0]!= 100);
                 printf("Test Mode Complete\n");
                 sharedData->progress[0] = 0;
