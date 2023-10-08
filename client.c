@@ -4,6 +4,8 @@
 #include <pthread.h>
 #include <unistd.h>
 #include <sys/time.h>
+#include <stdbool.h>
+#include <string.h>
 
 void attachToSharedMemory(sharedMemory **sharedData);
 
@@ -17,7 +19,7 @@ void displayProgress(sharedMemory *sharedData);
 
 void *readFromServer(void *args);
 
-uint32_t getInput(sharedMemory *sharedData, int shmID);
+int getInput(sharedMemory *sharedData, int shmID);
 
 int Mode = 0;
 
@@ -40,7 +42,6 @@ int main() {
 
 
     int shmID = initializeSharedMemory(&sharedData);
-    //cleanupSharedMemory(sharedData, shmID);
 
 
     pthread_t sendThread, readThread;
@@ -82,7 +83,7 @@ int main() {
         usleep(50000);
     }
 
-    return 0;
+
 }
 
 int initializeSharedMemory(sharedMemory **sharedData) {
@@ -173,25 +174,45 @@ void *readFromServer(void *args) {
 //
     }
 
-    return NULL;
+
 }
 
 
 
-uint32_t getInput(sharedMemory *sharedData, int shmID) {
-    printf("Enter a 32-bit integer (or 'q' to quit): ");
+int getInput(sharedMemory *sharedData, int shmID) {
     char input[32];
-    fgets(input, sizeof(input), stdin);
-    if (input[0] == 'q' || input[0] == 'Q') {
-        cleanupSharedMemory(sharedData, shmID);
-        exit(0);
+    int value;
+
+    while (true) {
+        printf("Enter a positive integer (or 'q' to quit, '0' for test mode): ");
+        fgets(input, sizeof(input), stdin);
+
+        // Remove newline character from input string
+        size_t len = strlen(input);
+        if (len > 0 && input[len-1] == '\n') {
+            input[len-1] = '\0';
+        }
+
+        if (input[0] == 'q' || input[0] == 'Q') {
+            cleanupSharedMemory(sharedData, shmID);
+            exit(0);
+        }
+
+        // Check for Test Mode
+        if (input[0] == '0' && input[1] == '\0' && activeRequests == 0) {
+            printf("\nEntering Test Mode...\n\n");
+            Mode = 2;  // Assuming you have a global or static variable named Mode
+            return 0;  // Return 0 to signal test mode
+        }
+
+        // Convert to integer and check if it's a positive integer or 0
+        value = atoi(input);
+        if (value >= 0 && strlen(input) > 0 && strspn(input, "0123456789") == strlen(input)) {
+            return value;
+        } else {
+            printf("Invalid input. Please enter a positive integer or 'q'.\n");
+        }
     }
-    if (input[0] == '0' && activeRequests == 0 ) {
-        printf("\nEntering Test Mode...\n\n");
-        Mode = 2;
-        return 0;  // Return 0 to signal test mode
-    }
-    return (uint32_t) strtoul(input, NULL, 10);
 }
 
 void displayProgress(sharedMemory *sharedData) {
