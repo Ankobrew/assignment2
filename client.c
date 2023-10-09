@@ -23,6 +23,8 @@ int getInput(sharedMemory *sharedData, int shmID);
 
 int Mode = 0;
 
+pthread_mutex_t activeRequestsMutex = PTHREAD_MUTEX_INITIALIZER;
+
 typedef struct {
     int input;
     sharedMemory *sharedData;
@@ -33,12 +35,12 @@ int activeRequests = 0;
 
 int main() {
 
+
     sharedMemory *sharedData = (sharedMemory *)malloc(sizeof(sharedMemory));
     if (sharedData == NULL) {
         perror("Failed to allocate memory for sharedData");
         exit(1);
     }
-
 
 
     int shmID = initializeSharedMemory(&sharedData);
@@ -49,6 +51,10 @@ int main() {
     args.sharedData = sharedData;
 
     pthread_create(&readThread, NULL, readFromServer, sharedData);
+
+    while (sharedData->clientFlag == 1) {
+        usleep(10000);  // Add a sleep to avoid a tight loop
+    }
 
     while(1) {
         // Infinite loop to continuously check if it can send more requests
@@ -70,7 +76,9 @@ int main() {
                 pthread_create(&sendThread, NULL, sendToServer, &args);
                 pthread_detach(sendThread);  // So we don't need to join later
                 Mode = 1;
+                pthread_mutex_lock(&activeRequestsMutex);
                 activeRequests++;
+                pthread_mutex_unlock(&activeRequestsMutex);
             }// Increment active request count
         } else {
 
@@ -142,6 +150,7 @@ void *readFromServer(void *args) {
     struct timeval lastProgressUpdateTime;
     gettimeofday(&lastProgressUpdateTime, NULL);
 
+
     while (1) { // Keep running indefinitely
 
         if (activeRequests == 0){
@@ -162,9 +171,11 @@ void *readFromServer(void *args) {
             if (sharedData->serverFlag[i] == 1) {
                 printf("Data from server (slot %d): %u\n", i, sharedData->slot[i]);
                 if(sharedData->timeElapsed[i] > 0){
-                    printf("Slot %d took %ld milliseconds\n", i, sharedData->timeElapsed[i]);
+                    printf("All factors found for Slot %d, it took %ld milliseconds\n", i, sharedData->timeElapsed[i]);
                    sharedData->timeElapsed[i] = 0;
-                   activeRequests--;
+                    pthread_mutex_lock(&activeRequestsMutex);
+                    activeRequests--;
+                    pthread_mutex_unlock(&activeRequestsMutex);
 
                 }
                 sharedData->serverFlag[i] = 0;

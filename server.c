@@ -7,9 +7,10 @@
 
 int globalThreadCounter[10];
 
-pthread_mutex_t counterMutex = PTHREAD_MUTEX_INITIALIZER;
-pthread_mutex_t slotMutex = PTHREAD_MUTEX_INITIALIZER;
 
+
+int slotState[10] = {0};
+pthread_mutex_t slotStateMutex[10];
 
 void attachToSharedMemory(sharedMemory **sharedData);
 
@@ -27,7 +28,6 @@ int findFreeSlot(sharedMemory *sharedData);
 
 void startTestMode(sharedMemory *sharedData);
 
-void displayServerProgress(sharedMemory *sharedData);
 
 
 void *threadFunction(void *arg);
@@ -58,7 +58,10 @@ int main() {
 
     ThreadArgs threadArgs[320];
 
-
+    for (int i = 0; i < 10; i++) {
+        slotState[i] = 0;
+        pthread_mutex_init(&slotStateMutex[i], NULL);
+    }
     while (1) {
 
         uint32_t data = receiveFromClient(sharedData);
@@ -86,7 +89,6 @@ int main() {
             usleep(10000);
         }
 
-        displayServerProgress(sharedData);
 
     }
 
@@ -111,9 +113,7 @@ void attachToSharedMemory(sharedMemory **sharedData) {
 uint32_t receiveFromClient(sharedMemory *sharedData) {
     while (sharedData->clientFlag == 0);
     uint32_t data = sharedData->number;
-    pthread_mutex_lock(&slotMutex);
     int slot_index = findFreeSlot(sharedData);
-    pthread_mutex_unlock(&slotMutex);
     sharedData->number = slot_index;
     gettimeofday(&sharedData->startTime[slot_index], NULL);
     sharedData->clientFlag = 0;
@@ -176,7 +176,7 @@ void *threadFunction(void *arg) {
 
     trialDivision(sharedData, input, slot_index);
 
-    pthread_mutex_lock(&counterMutex);
+    pthread_mutex_lock(&slotStateMutex[slot_index]);
     globalThreadCounter[slot_index]++;
 
     if (globalThreadCounter[slot_index] == 32) {
@@ -185,7 +185,8 @@ void *threadFunction(void *arg) {
         sharedData->timeElapsed[slot_index] = (sharedData->endTime[slot_index].tv_sec - sharedData->startTime[slot_index].tv_sec) * 1000 +
                        (sharedData->endTime[slot_index].tv_usec - sharedData->startTime[slot_index].tv_usec) / 1000;
         sharedData->progress[slot_index] = 100;
-        globalThreadCounter[slot_index] = 0;  // Reset the thread counter for this slot
+        globalThreadCounter[slot_index] = 0;
+        slotState[slot_index] = 0;  // Mark the slot as free
         sharedData->progress[slot_index] = 0; // Mark as completed
     }
 
@@ -193,7 +194,7 @@ void *threadFunction(void *arg) {
         sharedData->progress[slot_index] = (globalThreadCounter[slot_index]*100)/32;
     }
 
-    pthread_mutex_unlock(&counterMutex);
+    pthread_mutex_unlock(&slotStateMutex[slot_index]);
 
 
     return NULL;
@@ -201,8 +202,14 @@ void *threadFunction(void *arg) {
 
 int findFreeSlot(sharedMemory *sharedData) {
     for (int i = 0; i < 10; i++) {
-        if (sharedData->progress[i] == 0) {
-            return i;
+        if (sharedData->progress[i] == 0 && slotState[i] == 0) {
+            pthread_mutex_lock(&slotStateMutex[i]);
+            if (slotState[i] == 0) { // Double-check inside mutex to avoid race condition
+                slotState[i] = 1; // Mark as in use
+                pthread_mutex_unlock(&slotStateMutex[i]);
+                return i;
+            }
+            pthread_mutex_unlock(&slotStateMutex[i]);
         }
     }
     return -1;  // No free slot found
@@ -253,20 +260,3 @@ void startTestMode(sharedMemory *sharedData) {
     printf("Test mode completed!\n");
 }
 
-void displayServerProgress(sharedMemory *sharedData) {
-    printf("\nServer Progress: ");
-    for (int i = 0; i < 10; i++) {
-        if (sharedData->progress[i] > 0 || sharedData->serverFlag[i] == 1) {
-            printf("Slot %d: %d%% ", i, sharedData->progress[i]);
-            int bars = sharedData->progress[i] / 10;
-            for (int j = 0; j < bars; j++) {
-                printf("▓");
-            }
-            for (int j = bars; j < 10; j++) {
-                printf("_");
-            }
-            printf("| ");
-        }
-    }
-    printf("\n");
-}
